@@ -52,7 +52,6 @@ class GLM4(Chater):
             message = [self.create_system_message(self.system_message(userid))]
             for it in user.history:
                 message.append(it)
-                
             stream = self.client.chat.completions.create(
                 model="glm-4",
                 messages=message,
@@ -64,9 +63,8 @@ class GLM4(Chater):
             tick = 15
             for chunk in stream:
                 result += chunk.choices[0].delta.content
-                if curt < tick and time.time() - t > 5:
+                if curt < tick and time.time() - t > 1:
                     t = time.time()
-
                     modify(appid, messageid, result + "\n(编辑中)")
                     curt += 1
             self.get_userdata(userid).history.append(self.create_assistant_message(result ))

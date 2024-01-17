@@ -124,6 +124,10 @@ def send_persona_card(appid, oid):
                 "content": "下面是可以选择的人格，改变人格会改变机器人的对话方式。"
             },
             {
+                "tag": "markdown",
+                "content": "当前人格：**" + chatapp(oid).get_userdata(oid).system + "**"
+            },
+            {
                 "tag": "hr"
             },
         ],
@@ -135,12 +139,12 @@ def send_persona_card(appid, oid):
             }
         }
     }
-    def add_persona(pname):
+    def add_persona(pname, desc):
         content["elements"].append( {
                 "tag": "div",
                 "text": {
                     "tag": "lark_md",
-                    "content": pname
+                    "content": "**" + pname + "**：" + desc 
                 },
                 "extra": {
                     "tag": "button",
@@ -148,14 +152,14 @@ def send_persona_card(appid, oid):
                         "tag": "lark_md",
                         "content": "切换"
                     },
-                    "type": "primary",
+                    "type": "default",
                     "value": {
                         "btn_change_persona": pname
                     }
                 }
             })
     for k in system_messages.system_messages:
-        add_persona(k)
+        add_persona(k, system_messages.system_messages[k])
     card(appid, oid, content)
 
 
@@ -168,6 +172,10 @@ def send_models_card(appid, oid):
             {
                 "tag": "markdown",
                 "content": "下面是可以选择的模型，不同的模型能力有所不同。"
+            },
+            {
+                "tag": "markdown",
+                "content": "当前模型：**" + chatapp(oid).model_name + "**"
             },
             {
                 "tag": "hr"
@@ -186,7 +194,7 @@ def send_models_card(appid, oid):
                 "tag": "div",
                 "text": {
                     "tag": "lark_md",
-                    "content": m.model_name + "：" + m.desc
+                    "content": "**" + m.model_name + "**：" + m.desc
                 },
                 "extra": {
                     "tag": "button",
@@ -194,7 +202,7 @@ def send_models_card(appid, oid):
                         "tag": "lark_md",
                         "content": "切换"
                     },
-                    "type": "primary",
+                    "type": "default",
                     "value": {
                         "switch_model": m.model_id
                     }

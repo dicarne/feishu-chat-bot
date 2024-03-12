@@ -10,8 +10,8 @@ from .basechat import Chater
 
 
 class GLM4(Chater):
-    def __init__(self) -> None:
-        super().__init__("GLM4", "GLM4", desc="智谱开发的大模型，据说是最强中文模型。")
+    def __init__(self, name, showname, desc) -> None:
+        super().__init__(name, showname, desc=desc)
         self.client = None
 
     def config(self, conf):
@@ -39,7 +39,7 @@ class GLM4(Chater):
 
         newconv = self.create_user_message(user_text)
         user.history.append(newconv)
-        user.history = user.history[-19:]
+        user.history = user.history[-9:]
         await asyncio.to_thread(self.GLM4, userid=userid, appid=appid, messageid=mid)
         if len(user.remain_message) != 0:
             a = user.remain_message.pop(0)
@@ -53,7 +53,7 @@ class GLM4(Chater):
             for it in user.history:
                 message.append(it)
             stream = self.client.chat.completions.create(
-                model="glm-4",
+                model=self.current_model,
                 messages=message,
                 stream=True
             )
@@ -74,4 +74,6 @@ class GLM4(Chater):
             return result #a["choices"][0]["message"]["content"].strip()
         except Exception as e:
             print(e)
+            user.pending = False
+            modify(appid, messageid, result)
             return result + "\n\n【未知错误！】"

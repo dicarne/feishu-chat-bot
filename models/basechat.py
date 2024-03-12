@@ -63,6 +63,8 @@ class Chater:
 
     def menu_clear_history(self, userid: str) -> bool:
         self.get_userdata(userid).history = []
+        self.get_userdata(userid).pending = False
+        self.get_userdata(userid).remain_message = []
         return "重置上下文成功"
     
     def menu_mode_chat(self, userid: str) -> bool:

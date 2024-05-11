@@ -1,41 +1,20 @@
 
+from http import HTTPStatus
 import time
-
-import httpx
 
 from common import modify, reply, talk
 from .basechat import Chater
-from openai import AsyncOpenAI, RateLimitError
+import dashscope
 
 
-class ChatGPT(Chater):
+class QwenGPT(Chater):
     def __init__(self, model, mname, desc, model_name) -> None:
         super().__init__(model, mname, desc)
         self.model_key = model_name
-        self.model: AsyncOpenAI = None
-        self.gptmodel = ""
+        self.api_key = ""
 
     def config(self, m):
-        
-        BASE_URL = None
-        API_KEY = None
-        PROXY = None
-        if self.model_key in m:
-            self.gptmodel = m[self.model_key]
-        if "api_key" in m:
-            API_KEY = m["api_key"]
-        if "proxy" in m:
-            PROXY = m["proxy"]
-        if "api_base" in m:
-            BASE_URL = m["api_base"]
-        self.model = AsyncOpenAI(
-            api_key=API_KEY,
-            base_url=BASE_URL,
-            http_client=httpx.AsyncClient(
-                proxies=PROXY,
-                transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"),
-            ),
-        )
+        self.api_key = m["api_key"]
             
     async def chat(self, userid, user_text, message_id, appid):
         c = self.check_command(userid, user_text)
@@ -60,7 +39,7 @@ class ChatGPT(Chater):
         user.history.append(newconv)
         user.history = user.history[-9:]
         
-        res = await self.GPT4(userid, appid, mid)
+        res = await self.GPT(userid, appid, mid)
         user.pending = False
         modify(appid, mid, res)
 
@@ -71,33 +50,43 @@ class ChatGPT(Chater):
     def summary(self, userid):
         return super().summary()
 
-    async def GPT4(self, userid, appid, messageid):
+    async def GPT(self, userid, appid, messageid):
         result = ""
+
         try:
             message = [self.create_system_message(self.system_message(userid))]
             for it in self.get_userdata(userid).history:
                 message.append(it)
-                
-            stream = await self.model.chat.completions.create(
-                model=self.gptmodel,
+            response = dashscope.Generation.call(
+                dashscope.Generation.Models.qwen_turbo,
                 messages=message,
+                result_format='message',  # set the result to be "message" format.
+                api_key=self.api_key,
                 stream=True
             )
-            
+
             t = time.time()
             curt = 0
             tick = 15
-            async for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
-                    result += chunk.choices[0].delta.content
-                    if curt < tick and time.time() - t > 5:
+            for resp in response:
+                chunk = resp.output
+                if len(chunk.choices) != 0 and chunk.choices[0].message.content is not None:
+                    result = chunk.choices[0].message.content
+                    if curt < tick and time.time() - t > 2:
                         t = time.time()
                         modify(appid, messageid, result + "\n(编辑中)")
                         curt += 1
-            self.get_userdata(userid).history.append(self.create_assistant_message(result ))
+            # if response.status_code == HTTPStatus.OK:
+            #     result = response.output.choices[0].message.content
+            #     self.get_userdata(userid).history.append(self.create_assistant_message(result ))
+            # else:
+            #     result = ('Request id: %s, Status code: %s, error code: %s, error message: %s' % (
+            #         response.request_id, response.status_code,
+            #         response.code, response.message
+            #     ))
+
+            
             return result
-        except RateLimitError as e:
-            return "对话频率达到限制！休息会吧！"
         except Exception as e:
             print(e)
             return result + "\n\n【未知错误！】"

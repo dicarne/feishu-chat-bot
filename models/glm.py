@@ -9,7 +9,7 @@ from .basechat import Chater
 # 在此氪金：https://maas.aminer.cn/overview
 
 
-class GLM4(Chater):
+class GLM(Chater):
     def __init__(self, name, showname, desc) -> None:
         super().__init__(name, showname, desc=desc)
         self.client = None

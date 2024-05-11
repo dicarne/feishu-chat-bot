@@ -62,7 +62,7 @@ def set_chatapp(oid, newm: str):
 def chatapp(oid: str) -> Chater:
     m = redis_conn.get("chat-feishu-usermodel:"+oid)
     if m is None or not m in models:
-        m = "gpt"
+        m = "qwen_turbo"
         set_chatapp(oid, m)
     return models[m]
 

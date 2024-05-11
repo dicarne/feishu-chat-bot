@@ -4,24 +4,29 @@ import json
 import asyncio
 from common import *
 
+from models.deepseek import DeepSeekGPT
+from models.qwen import QwenGPT
 from models.wenyanyixin import Wenyanyixin
 from models.gpt import ChatGPT
-from models.glm import GLM4
+from models.glm import GLM
 from models.moonshot import MoonshotGPT
 
 import toml
 
 
 models = {
+    "qwen_turbo": QwenGPT("qwen_turbo", "通义千问", "通义千问8k", "qwen_turbo"),
+    "deepseek": DeepSeekGPT("deepseek", "DeepSeek", "DeepSeek，价格便宜，自己说自己很强。", ""),
     "gpt": ChatGPT("GPT4", "GPT4", "最为强大的语言模型，俗称为ChatGPT。", "gpt4"),
+    "gpt(cf)": ChatGPT("GPT4(cf)", "GPT4(cf)", "(代理版)最新的GPT4，如果原版的访问不了可以用这个，效果完全一样。", "gpt4"),
     "gpt3.5": ChatGPT("GPT3.5", "GPT3.5", "ChatGPT的廉价版本。", "gpt3_5"),
-    "glm4": GLM4("glm-4", "GLM4", "适用于复杂的对话交互和深度内容创作设计的场景"),
-    "glm3.5": GLM4("glm-3-turbo", "GLM3.5", "适用于对知识量、推理能力、创造力要求较高的场景"),
+    "glm4": GLM("glm-4", "GLM4", "适用于复杂的对话交互和深度内容创作设计的场景"),
+    "glm3.5": GLM("glm-3-turbo", "GLM3.5", "适用于对知识量、推理能力、创造力要求较高的场景"),
     "wenxin4": Wenyanyixin("WENXIN4", "文心一言4", "百度开发的大模型，能力较强。"),
     "wenxin3": Wenyanyixin("WENXIN3", "文心一言3", "上版本的百度开发的大模型，能力较弱但便宜。"),
     "moonshot8": MoonshotGPT("MOONSHOT8", "MoonShot8", "月之暗面 8k 上下文", "moonshot_8k"),
     "moonshot32": MoonshotGPT("MOONSHOT32", "MoonShot32", "月之暗面 32k 上下文", "moonshot_32k"),
-    "moonshot128": MoonshotGPT("MOONSHOT128", "MoonShot128", "月之暗面 128k 上下文", "moonshot_128k")
+    "moonshot128": MoonshotGPT("MOONSHOT128", "MoonShot128", "月之暗面 128k 上下文", "moonshot_128k"),
 }
 app = FastAPI()
 distin = {}
@@ -36,32 +41,52 @@ if "models" in conf:
             models.pop(k)
 
 if "openai" in conf:
-    models["gpt"].config(conf["openai"])
-    models["gpt3.5"].config(conf["openai"])
+    if "gpt" in models:
+        models["gpt"].config(conf["openai"])
+    if "gpt3.5" in models:
+        models["gpt3.5"].config(conf["openai"])
 else:
     models.pop("gpt")
     models.pop("gpt3.5")
 
+if "openai-cf" in conf:
+    models["gpt(cf)"].config(conf["openai-cf"])
+else:
+    models.pop("gpt(cf)")
+
 if "baidu" in conf:
     models["wenxin4"].config(conf["baidu"])
-    models["wenxin3"].config(conf["baidu"])
+    if "wenxin3" in models:
+        models["wenxin3"].config(conf["baidu"])
 else:
     models.pop("wenxin4")
     models.pop("wenxin3")
 
 if "glm" in conf:
     models["glm4"].config(conf["glm"])
-    models["glm3.5"].config(conf["glm"])
+    if "glm3.5" in models:
+        models["glm3.5"].config(conf["glm"])
 else:
     models.pop("glm4")
     models.pop("glm3.5")
 
 if "moonshot" in conf:
     models["moonshot8"].config(conf["moonshot"])
-    models["moonshot32"].config(conf["moonshot"])
+    if "moonshot32" in models:
+        models["moonshot32"].config(conf["moonshot"])
     models["moonshot128"].config(conf["moonshot"])
 else:
     models.pop("moonshot")
+
+if "ali" in conf:
+    models["qwen_turbo"].config(conf["ali"])
+else:
+    models.pop("qwen_turbo")
+
+if "deepseek" in conf:
+    models["deepseek"].config(conf["deepseek"])
+else:
+    models.pop("deepseek")
 
 feishu = conf["feishu"]
 for k in feishu:

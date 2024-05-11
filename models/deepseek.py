@@ -1,40 +1,23 @@
 
 import time
 
-import httpx
-
 from common import modify, reply, talk
 from .basechat import Chater
-from openai import AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI, OpenAI, RateLimitError
 
 
-class ChatGPT(Chater):
+
+class DeepSeekGPT(Chater):
     def __init__(self, model, mname, desc, model_name) -> None:
         super().__init__(model, mname, desc)
         self.model_key = model_name
         self.model: AsyncOpenAI = None
-        self.gptmodel = ""
+        self.gptmodel = "deepseek-chat",
 
     def config(self, m):
-        
-        BASE_URL = None
-        API_KEY = None
-        PROXY = None
-        if self.model_key in m:
-            self.gptmodel = m[self.model_key]
-        if "api_key" in m:
-            API_KEY = m["api_key"]
-        if "proxy" in m:
-            PROXY = m["proxy"]
-        if "api_base" in m:
-            BASE_URL = m["api_base"]
         self.model = AsyncOpenAI(
-            api_key=API_KEY,
-            base_url=BASE_URL,
-            http_client=httpx.AsyncClient(
-                proxies=PROXY,
-                transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"),
-            ),
+            api_key = m["api_key"],
+            base_url = "https://api.deepseek.com/v1"
         )
             
     async def chat(self, userid, user_text, message_id, appid):
@@ -73,24 +56,25 @@ class ChatGPT(Chater):
 
     async def GPT4(self, userid, appid, messageid):
         result = ""
+
         try:
             message = [self.create_system_message(self.system_message(userid))]
             for it in self.get_userdata(userid).history:
                 message.append(it)
-                
             stream = await self.model.chat.completions.create(
                 model=self.gptmodel,
                 messages=message,
-                stream=True
+                stream=True,
             )
             
             t = time.time()
             curt = 0
             tick = 15
             async for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
+                print(chunk)
+                if len(chunk.choices) != 0 and chunk.choices[0].delta.content is not None:
                     result += chunk.choices[0].delta.content
-                    if curt < tick and time.time() - t > 5:
+                    if curt < tick and time.time() - t > 2:
                         t = time.time()
                         modify(appid, messageid, result + "\n(编辑中)")
                         curt += 1
@@ -100,4 +84,4 @@ class ChatGPT(Chater):
             return "对话频率达到限制！休息会吧！"
         except Exception as e:
             print(e)
-            return result + "\n\n【未知错误！】"
+            return result + "\n\n【未知错误！】\n\n" + str(e)

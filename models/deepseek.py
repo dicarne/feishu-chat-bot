@@ -12,7 +12,7 @@ class DeepSeekGPT(Chater):
         super().__init__(model, mname, desc)
         self.model_key = model_name
         self.model: AsyncOpenAI = None
-        self.gptmodel = "deepseek-chat",
+        self.gptmodel = "deepseek-chat"
 
     def config(self, m):
         self.model = AsyncOpenAI(
@@ -43,7 +43,7 @@ class DeepSeekGPT(Chater):
         user.history.append(newconv)
         user.history = user.history[-9:]
         
-        res = await self.GPT4(userid, appid, mid)
+        res = await self.GPT(userid, appid, mid)
         user.pending = False
         modify(appid, mid, res)
 
@@ -54,27 +54,26 @@ class DeepSeekGPT(Chater):
     def summary(self, userid):
         return super().summary()
 
-    async def GPT4(self, userid, appid, messageid):
+    async def GPT(self, userid, appid, messageid):
         result = ""
-
         try:
             message = [self.create_system_message(self.system_message(userid))]
             for it in self.get_userdata(userid).history:
                 message.append(it)
+                
             stream = await self.model.chat.completions.create(
                 model=self.gptmodel,
                 messages=message,
-                stream=True,
+                stream=True
             )
             
             t = time.time()
             curt = 0
             tick = 15
             async for chunk in stream:
-                print(chunk)
-                if len(chunk.choices) != 0 and chunk.choices[0].delta.content is not None:
+                if chunk.choices[0].delta.content is not None:
                     result += chunk.choices[0].delta.content
-                    if curt < tick and time.time() - t > 2:
+                    if curt < tick and time.time() - t > 3:
                         t = time.time()
                         modify(appid, messageid, result + "\n(编辑中)")
                         curt += 1
@@ -83,5 +82,4 @@ class DeepSeekGPT(Chater):
         except RateLimitError as e:
             return "对话频率达到限制！休息会吧！"
         except Exception as e:
-            print(e)
             return result + "\n\n【未知错误！】\n\n" + str(e)

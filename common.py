@@ -62,7 +62,7 @@ def set_chatapp(oid, newm: str):
 def chatapp(oid: str) -> Chater:
     m = redis_conn.get("chat-feishu-usermodel:"+oid)
     if m is None or not m in models:
-        m = "qwen_turbo"
+        m = "gpt(cf)"
         set_chatapp(oid, m)
     return models[m]
 
@@ -290,4 +290,107 @@ def send_detail_card(appid, oid):
         }
     }
 
+    card(appid, oid, content)
+
+def send_config_card(appid, oid):
+    detail = chatapp(oid).show_detail(oid)
+    models_options = []
+    for k in models:
+        models_options.append({
+            "text": {
+                "tag": "plain_text",
+                "content": models[k].model_name
+            },
+            "value": k
+        })
+    person_options = []
+    for k in system_messages.system_messages:
+        person_options.append({
+            "text": {
+                "tag": "plain_text",
+                "content": k
+            },
+            "value": k
+        })
+    
+    content = {
+        "elements": [
+            {
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": "选择模型"
+                },
+                "extra": {
+                    "tag": "select_static",
+                    "placeholder": {
+                        "tag": "plain_text",
+                        "content": detail["model"]
+                    },
+                    "value": {
+                        "card_change_model": "value"
+                    },
+                    "options": models_options
+                }
+            },
+            {
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": "选择人格"
+                },
+                "extra": {
+                    "tag": "select_static",
+                    "placeholder": {
+                        "tag": "plain_text",
+                        "content": detail["system"]
+                    },
+                    "value": {
+                        "card_change_person": "value"
+                    },
+                    "options": person_options
+                }
+            },
+            {
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": "选择模式"
+                },
+                "extra": {
+                    "tag": "select_static",
+                    "placeholder": {
+                        "tag": "plain_text",
+                        "content": detail["mode"]
+                    },
+                    "value": {
+                        "card_change_mode": "value"
+                    },
+                    "options": [
+                        {
+                            "text": {
+                                "tag": "plain_text",
+                                "content": "对话"
+                            },
+                            "value": "对话"
+                        },
+                        {
+                            "text": {
+                                "tag": "plain_text",
+                                "content": "问答"
+                            },
+                            "value": "问答"
+                        }
+                    ]
+                }
+            }
+        ],
+        "header": {
+            "template": "blue",
+            "title": {
+                "content": "模型管理",
+                "tag": "plain_text"
+            }
+        }
+    }
     card(appid, oid, content)

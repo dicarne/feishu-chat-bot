@@ -12,25 +12,26 @@ class UserData:
         self._chat_mode = True
         self._system = "助手"
         self.redis_key = "chat-feishu-userdata:" + userid + ":" + model
+        self.gredis_key = "chat-feishu-userdata:" + userid
         self.pending = False
         self.last_task = None
         self.remain_message = []
     
     @property
     def chat_mode(self):
-        return redis_conn.get(self.redis_key+":chat_mode") == "true"
+        return redis_conn.get(self.gredis_key+":chat_mode") == "true"
 
     @chat_mode.setter
     def chat_mode(self, value: bool):
-        redis_conn.set(self.redis_key+":chat_mode", "true" if value else "false")
+        redis_conn.set(self.gredis_key+":chat_mode", "true" if value else "false")
 
     @property
     def system(self):
-        sys = redis_conn.get(self.redis_key+":system") or "助手"
+        sys = redis_conn.get(self.gredis_key+":system") or "助手"
         if sys in system_messages.system_messages:
             return sys
         return "助手"
     
     @system.setter
     def system(self, value: str):
-        redis_conn.set(self.redis_key+":system", value)
+        redis_conn.set(self.gredis_key+":system", value)

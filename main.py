@@ -110,6 +110,8 @@ async def post_by_feishu(data: dict):
             return handle_bot_chat(data)
         elif event_type == "application.bot.menu_v6":
             return handle_menu(data)
+        elif event_type == "card.action.trigger":
+            return handle_card_callback(data)
         print("unknown event")
         print(data)
         return {
@@ -131,6 +133,31 @@ async def post_by_feishu(data: dict):
                     oid = data["open_id"]
                     set_chatapp(oid, model_name)
                     talk(app_id, oid, "已切换模型：" + chatapp(oid).model_name)
+        
+    return {
+        "code": 0,
+        "msg": "success"
+    }
+
+def handle_card_callback(data):
+    event = data["event"]
+    action = event["action"]
+    value = action["value"]
+    app_id = data["header"]["app_id"]
+    oid = data["event"]["operator"]["open_id"]
+    if action["tag"] == "select_static":
+        if 'card_change_model' in value:
+            model_name = action["option"]
+            set_chatapp(oid, model_name)
+        if 'card_change_person' in value:
+            model_name = action["option"]
+            chatapp(oid).change_persona(oid, model_name)
+        if 'card_change_mode' in value:
+            model_name = action["option"]
+            if model_name == "对话":
+                chatapp(oid).menu_mode_chat(oid)
+            else:
+                chatapp(oid).menu_mode_qa(oid)
     return {
         "code": 0,
         "msg": "success"
@@ -180,7 +207,9 @@ def handle_menu(data):
     elif menukey == "mode_qa":
         talk(appid, oid, chatapp(oid).menu_mode_qa(oid))
     elif menukey == "request_switch_model":
-        send_models_card(appid, oid)
+        # 旧的
+        # send_models_card(appid, oid)
+        send_config_card(appid, oid)
     elif menukey == "change_persona":
         send_persona_card(appid, oid)
     elif menukey == "menu_show_detail":

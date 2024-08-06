@@ -17,15 +17,18 @@ class Chater:
     def config(self, conf):
         pass
     
-    async def chat(userid, user_text, message_id, appid):
+    async def chat(self, userid, user_text, message_id, appid):
         return ""
+    
+    async def gpt(self, messages, config=None):
+        return self.model_id + " 未实现gpt接口"
     
     def summary(userid):
         pass
 
 
 
-    def create_user_message(self, text: str):
+    def create_user_message(self, text: str | list):
         return {
             "role": "user",
             "content": text
@@ -62,7 +65,7 @@ class Chater:
         return self.userdata[uid]
 
     def menu_clear_history(self, userid: str) -> bool:
-        self.get_userdata(userid).history = []
+        self.get_userdata(userid).history.clear()
         self.get_userdata(userid).pending = False
         self.get_userdata(userid).remain_message = []
         return "重置上下文成功"

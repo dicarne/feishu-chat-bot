@@ -26,7 +26,7 @@ class AccessKey:
 
 class FeishuTenantKey(AccessKey):
     def __init__(self, appid, appsec) -> None:
-        super().__init__(1 * 60 * 60)
+        super().__init__(1)
         self.app_id = appid
         self.appsec = appsec
     
@@ -62,7 +62,7 @@ def set_chatapp(oid, newm: str):
 def chatapp(oid: str) -> Chater:
     m = redis_conn.get("chat-feishu-usermodel:"+oid)
     if m is None or not m in models:
-        m = "gpt(cf)"
+        m = "gpt(mini)"
         set_chatapp(oid, m)
     return models[m]
 
@@ -86,6 +86,8 @@ def talk(appid, oid, content):
         "Authorization": f"Bearer { config.tenant_access_token(appid).key() }",
     })
     j = r.json()
+    if "data" not in j:
+        print(j)
     return j["data"]["message_id"]
 
 def reply(appid, message_id, content):

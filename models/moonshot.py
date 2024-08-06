@@ -3,7 +3,7 @@ import time
 
 from common import modify, reply, talk
 from .basechat import Chater
-from openai import AsyncOpenAI, OpenAI, RateLimitError
+from openai import NOT_GIVEN, AsyncOpenAI, OpenAI, RateLimitError
 
 
 
@@ -21,6 +21,17 @@ class MoonshotGPT(Chater):
             api_key = m["api_key"],
             base_url = "https://api.moonshot.cn/v1"
         )
+    
+    async def gpt(self, messages, config):
+        response_format = NOT_GIVEN
+        if 'response_format' in config:
+            response_format = config['response_format']
+        result = await self.model.chat.completions.create(
+                model=self.gptmodel,
+                messages=messages,
+                response_format=response_format,
+        )
+        return result.choices[0].message.content
             
     async def chat(self, userid, user_text, message_id, appid):
         c = self.check_command(userid, user_text)

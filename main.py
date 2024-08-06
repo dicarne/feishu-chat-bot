@@ -1,5 +1,6 @@
 # http://127.0.0.1:32212
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import asyncio
 from common import *
@@ -10,7 +11,9 @@ from models.wenyanyixin import Wenyanyixin
 from models.gpt import ChatGPT
 from models.glm import GLM
 from models.moonshot import MoonshotGPT
-
+from models.spark import Spark
+from minio import Minio
+from io import BytesIO
 import toml
 
 
@@ -18,7 +21,7 @@ models = {
     "qwen_turbo": QwenGPT("qwen_turbo", "通义千问", "通义千问8k", "qwen_turbo"),
     "deepseek": DeepSeekGPT("deepseek", "DeepSeek", "DeepSeek，价格便宜，自己说自己很强。", ""),
     "gpt": ChatGPT("GPT4", "GPT4", "最为强大的语言模型，俗称为ChatGPT。", "gpt4"),
-    "gpt(cf)": ChatGPT("GPT4(cf)", "GPT4(cf)", "(代理版)最新的GPT4，如果原版的访问不了可以用这个，效果完全一样。", "gpt4"),
+    "gpt(mini)": ChatGPT("GPT4(mini)", "GPT4(mini)", "廉价版，应该效果不错（至少比国产模型强）", "gpt4omini"),
     "gpt3.5": ChatGPT("GPT3.5", "GPT3.5", "ChatGPT的廉价版本。", "gpt3_5"),
     "glm4": GLM("glm-4", "GLM4", "适用于复杂的对话交互和深度内容创作设计的场景"),
     "glm3.5": GLM("glm-3-turbo", "GLM3.5", "适用于对知识量、推理能力、创造力要求较高的场景"),
@@ -27,8 +30,18 @@ models = {
     "moonshot8": MoonshotGPT("MOONSHOT8", "MoonShot8", "月之暗面 8k 上下文", "moonshot_8k"),
     "moonshot32": MoonshotGPT("MOONSHOT32", "MoonShot32", "月之暗面 32k 上下文", "moonshot_32k"),
     "moonshot128": MoonshotGPT("MOONSHOT128", "MoonShot128", "月之暗面 128k 上下文", "moonshot_128k"),
+    "spark_pro": Spark("SPARK_PRO", "Spark Pro", "讯飞星火，据说比较专业。", "generalv3")
 }
 app = FastAPI()
+
+# app.add_middleware(
+#        CORSMiddleware,
+#        allow_origins=["*"],  # 可以设置为允许的源，如 ["http://example.com"]
+#        allow_credentials=True,
+#        allow_methods=["*"],  # 可以设置为允许的 HTTP 方法，如 ["GET", "POST"]
+#        allow_headers=["*"],  # 可以设置为允许的请求头，如 ["X-Custom-Header"]
+#    )
+
 distin = {}
 
 conf = toml.load("config.toml")
@@ -45,14 +58,17 @@ if "openai" in conf:
         models["gpt"].config(conf["openai"])
     if "gpt3.5" in models:
         models["gpt3.5"].config(conf["openai"])
+    if "gpt(mini)" in models:
+        models["gpt(mini)"].config(conf["openai"])
 else:
     models.pop("gpt")
     models.pop("gpt3.5")
+    models.pop("gpt(mini)")
 
-if "openai-cf" in conf:
-    models["gpt(cf)"].config(conf["openai-cf"])
-else:
-    models.pop("gpt(cf)")
+# if "openai-cf" in conf:
+#     models["gpt(cf)"].config(conf["openai-cf"])
+# else:
+#     models.pop("gpt(cf)")
 
 if "baidu" in conf:
     models["wenxin4"].config(conf["baidu"])
@@ -83,6 +99,11 @@ if "ali" in conf:
 else:
     models.pop("qwen_turbo")
 
+if "spark" in conf:
+    models["spark_pro"].config(conf["spark"])
+else:
+    models.pop("spark_pro")
+
 if "deepseek" in conf:
     models["deepseek"].config(conf["deepseek"])
 else:
@@ -93,10 +114,44 @@ for k in feishu:
     it = feishu[k]
     config._tenant_access_token[it["app_id"]] = FeishuTenantKey(it["app_id"], it["app_secret"])
 
+minioClient = Minio(conf['minio']['endpoint'],
+                    access_key=conf['minio']['access_key'],
+                    secret_key=conf['minio']['secret_key'],
+                    secure=False)
 
 init_chatapp(models)
 
-    
+def error(m: str):
+    return {
+        'code': 10000,
+        'message': m,
+    }
+
+@app.post("/chatbot/gpt")
+async def gen_gpt(data: dict):
+    if 'token' not in data:
+        return error('need token')
+    if data['token'] != conf['token']:
+        return error('token error')
+    if 'model' not in data:
+        return error('need model')
+    model = data['model']
+
+    if 'messages' not in data:
+        return error('need messages')
+    messages = data['messages']
+
+    if model not in models:
+        return error(f'{model} not available')
+    m: Chater = models[model]
+
+    config = {}
+    if 'config' in data:
+        config = data['config']
+    result = await m.gpt(messages, config)
+    return {
+        "content": result
+    }
 
 @app.post("/chatbot/")
 async def post_by_feishu(data: dict):
@@ -163,7 +218,16 @@ def handle_card_callback(data):
         "msg": "success"
     }
 
+def getImgUrl(mid, app_id, img_key):
+    data = requests.get(f"https://open.feishu.cn/open-apis/im/v1/messages/{mid}/resources/{img_key}?type=image", headers={
+        "Authorization": f"Bearer { config.tenant_access_token(app_id).key() }",
+    })
+    ftype = data.headers["Content-Type"]
+    minioClient.put_object(conf['minio']['bucket'], "imgs/" + img_key, BytesIO(data.content), len(data.content), ftype)
+    return f"https://{conf['minio']['endpoint']}/{conf['minio']['bucket']}/imgs/{img_key}"
+    
 def handle_bot_chat(data):
+    
     event = data["event"]
     oid = event["sender"]["sender_id"]["open_id"]
     app_id = data["header"]["app_id"]
@@ -178,17 +242,49 @@ def handle_bot_chat(data):
     messageobj = json.loads(message["content"])
 
     content = ""
+    
     if "text" in messageobj:
         content = messageobj["text"]
     elif "content" in messageobj:
         for line in messageobj["content"]:
             for it in line:
                 if it["tag"] == "text":
-                    content += it["text"]
+                    if isinstance(content, str):
+                        content += it["text"]
+                    else:
+                        content.append({
+                            "type": "text",
+                            "text": it["text"]
+                        })
                 elif it["tag"] == "a":
-                    content += f"({it['text']})[{it['href']}]"
-            content += "\n"
-
+                    if isinstance(content, str):
+                        content += f"({it['text']})[{it['href']}]"
+                    else:
+                        content.append({
+                            "type": "text",
+                            "text": f"({it['text']})[{it['href']}]"
+                        })
+                elif it["tag"] == "img":
+                    if isinstance(content, str):
+                        content = [{
+                            "type": "text",
+                            "text": content
+                        }]
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": getImgUrl(mid, app_id, it["image_key"])
+                        }
+                    })
+            # content += "\n"
+    elif "image_key" in messageobj:
+        content = [{
+            "type": "image_url",
+            "image_url": {
+                "url": getImgUrl(mid, app_id, messageobj["image_key"])
+            }
+        }]
+    print(content)
     asyncio.ensure_future(gpt(app_id, oid, content, mid))
 
     return {

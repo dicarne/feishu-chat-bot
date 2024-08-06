@@ -5,8 +5,8 @@ import httpx
 
 from common import modify, reply, talk
 from .basechat import Chater
-from openai import AsyncOpenAI, RateLimitError
-
+from openai import NOT_GIVEN, AsyncOpenAI, NotFoundError, RateLimitError, OpenAI
+import asyncio
 
 class ChatGPT(Chater):
     def __init__(self, model, mname, desc, model_name) -> None:
@@ -31,11 +31,13 @@ class ChatGPT(Chater):
         self.model = AsyncOpenAI(
             api_key=API_KEY,
             base_url=BASE_URL,
-            http_client=httpx.AsyncClient(
-                proxies=PROXY,
-                transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"),
-            ),
         )
+
+        
+        # http_client=httpx.AsyncClient(
+        #     proxies=PROXY,
+        #     transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"),
+        # ),
             
     async def chat(self, userid, user_text, message_id, appid):
         c = self.check_command(userid, user_text)
@@ -70,8 +72,21 @@ class ChatGPT(Chater):
     
     def summary(self, userid):
         return super().summary()
+    
+    async def gpt(self, messages, config):
+        response_format = NOT_GIVEN
+        if 'response_format' in config:
+            response_format = config['response_format']
+        result = await self.model.chat.completions.create(
+                model=self.gptmodel,
+                messages=messages,
+                response_format=response_format,
+        )
+        return result.choices[0].message.content
 
-    async def GPT4(self, userid, appid, messageid):
+    async def GPT4(self, userid, appid, messageid, retry=0):
+        if retry > 20:
+            return "重试错误已达最大值"
         result = ""
         try:
             message = [self.create_system_message(self.system_message(userid))]
@@ -88,6 +103,7 @@ class ChatGPT(Chater):
             curt = 0
             tick = 15
             async for chunk in stream:
+                # print(chunk.choices)
                 if chunk.choices[0].delta.content is not None:
                     result += chunk.choices[0].delta.content
                     if curt < tick and time.time() - t > 5:
@@ -98,6 +114,14 @@ class ChatGPT(Chater):
             return result
         except RateLimitError as e:
             return "对话频率达到限制！休息会吧！"
+        # except NotFoundError as e:
+        #     await asyncio.sleep(5)
+        #     return self.GPT4(self, userid, appid, messageid, retry=retry+1)
         except Exception as e:
+            await asyncio.sleep(5)
+            print("错误，重试：" + str(retry))
             print(e)
-            return result + "\n\n【未知错误！】"
+            # raise e
+            return await self.GPT4(userid, appid, messageid, retry=retry+1)
+            # print(e)
+            # return result + "\n\n【未知错误！】"
